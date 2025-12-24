@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
 import { useLearningStore } from "@/lib/store";
 import { ReflectionModal } from "@/components/features/ReflectionModal";
-import { RepoSetup } from "@/components/features/RepoSetup";
+
 import { Button } from "@/components/ui/button";
 
 interface DashboardProps {
@@ -16,23 +16,39 @@ interface DashboardProps {
 }
 
 export function Dashboard({ needsSetup }: DashboardProps) {
-  if (needsSetup) {
-      return <RepoSetup />;
-  }
-
+  const { setSetupOpen } = useLearningStore();
   const fetchEntries = useLearningStore((state) => state.fetchEntries);
   const [showReflection, setShowReflection] = useState(false);
 
   useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
+    if (!needsSetup) {
+        fetchEntries();
+    }
+  }, [fetchEntries, needsSetup]);
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1.6fr,1fr]">
       {/* Left Column: Input and History */}
       <div className="space-y-10">
         <section aria-label="Daily Entry">
-           <DailyEntry />
+           {needsSetup ? (
+                <Card className="border-dashed border-2">
+                    <CardContent className="flex flex-col items-center justify-center p-10 text-center space-y-4">
+                        <div className="p-4 rounded-full bg-primary/10 text-primary">
+                            <Sparkles className="h-8 w-8" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-semibold">Welcome to WDYLT!</h3>
+                            <p className="text-muted-foreground max-w-sm">
+                                To start tracking your learning journey, please connect or create a GitHub repository.
+                            </p>
+                        </div>
+                         <Button onClick={() => setSetupOpen(true)}>Setup Journal</Button>
+                    </CardContent>
+                </Card>
+           ) : (
+                <DailyEntry />
+           )}
         </section>
 
         <section aria-label="History">
@@ -40,7 +56,8 @@ export function Dashboard({ needsSetup }: DashboardProps) {
             <h2 className="text-2xl font-bold tracking-tight">Today's Progress</h2>
             <div className="text-sm text-muted-foreground">Recent entries</div>
           </div>
-          <HistoryList onlyToday={true} />
+          {!needsSetup && <HistoryList onlyToday={true} />}
+          {needsSetup && <div className="text-muted-foreground text-sm italic">Connect your repository to see your history.</div>}
         </section>
       </div>
 

@@ -11,7 +11,7 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   return (
     <div className={cn(
-        "prose prose-sm dark:prose-invert break-words text-foreground",
+        "prose prose-sm dark:prose-invert wrap-break-word text-foreground",
         "prose-headings:text-foreground prose-p:text-foreground",
         "prose-strong:text-foreground prose-strong:font-bold",
         "prose-li:text-foreground prose-blockquote:text-foreground prose-blockquote:border-l-primary",

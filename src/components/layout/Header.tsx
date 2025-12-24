@@ -3,6 +3,7 @@
 import { useLearningStore } from "@/lib/store";
 import { Flame, BookOpen, CalendarDays } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { RepoSetup } from "@/components/features/RepoSetup";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -85,6 +86,7 @@ export function Header({ session }: { session: any }) {
           <UserMenu session={session} />
         </div>
       </div>
+      <RepoSetup />
     </header>
   );
 }

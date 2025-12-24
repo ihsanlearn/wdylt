@@ -28,6 +28,8 @@ interface LearningState {
   updateEntry: (entry: LearningEntry) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   setEditingEntry: (entry: LearningEntry | null) => void;
+  isSetupOpen: boolean;
+  setSetupOpen: (isOpen: boolean) => void;
 }
 
 export const useLearningStore = create<LearningState>((set, get) => ({
@@ -164,4 +166,7 @@ export const useLearningStore = create<LearningState>((set, get) => ({
         set({ entries: previousEntries });
     }
   },
+
+  isSetupOpen: false,
+  setSetupOpen: (isOpen: boolean) => set({ isSetupOpen: isOpen }),
 }));

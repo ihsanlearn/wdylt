@@ -3,13 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import { login, logout } from "@/lib/auth-actions";
 import { Button } from "@/components/ui/button";
-import { Github, LogOut, User } from "lucide-react";
+import { Github, LogOut, User, Database } from "lucide-react";
+import { useLearningStore } from "@/lib/store";
 
 interface UserMenuProps {
     session: any;
 }
 
 export function UserMenu({ session }: UserMenuProps) {
+    const { setSetupOpen } = useLearningStore();
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +64,17 @@ export function UserMenu({ session }: UserMenuProps) {
                             <p className="font-medium leading-none">{name}</p>
                             <p className="text-xs text-muted-foreground truncate">{email}</p>
                             {username && <p className="text-xs text-muted-foreground">@{username}</p>}
+                        </div>
+                        <div className="h-px bg-border my-1" />
+                        <div 
+                            className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                            onClick={() => {
+                                setSetupOpen(true);
+                                setIsOpen(false);
+                            }}
+                        >
+                            <Database className="mr-2 h-4 w-4" />
+                            <span>Setup Journal</span>
                         </div>
                         <div className="h-px bg-border my-1" />
                         <div 
