@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { Trash2, Book, Code, Calculator, ShieldCheck, PenTool, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
+import { MotivationalLoader } from "@/components/ui/motivational-loader";
 
 const CategoryIcon = ({ category }: { category: string }) => {
   switch (category) {
@@ -22,13 +23,7 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
   const { entries, removeEntry, isLoading } = useLearningStore();
 
   if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-32 w-full animate-pulse rounded-xl bg-muted/50" />
-        ))}
-      </div>
-    );
+    return <MotivationalLoader open={true} fullscreen={false} />;
   }
 
   // Filter entries if onlyToday is true

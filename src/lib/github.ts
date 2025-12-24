@@ -5,24 +5,55 @@ import matter from "gray-matter";
 import slugify from "slugify";
 import { type LearningEntry, type Category } from "./store";
 import dns from "node:dns";
+import { auth } from "@/auth";
+
+import { cookies } from "next/headers";
 
 // Force IPv4 first to avoid long timeouts with IPv6 on some networks
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder("ipv4first");
 }
 
-const OCTOKIT = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
-  request: {
-    timeout: 30000,
-  },
-});
+const DEFAULT_REPO = "wdylt-notes";
 
-const OWNER = process.env.GITHUB_OWNER || "";
-const REPO = process.env.GITHUB_REPO || "";
+async function getClient() {
+  const session = await auth();
+  const token = (session as any)?.accessToken;
+  const username = (session as any)?.username;
 
-if (!process.env.GITHUB_TOKEN) {
-  console.error("GITHUB_TOKEN is missing");
+  if (!token || !username) {
+    return null;
+  }
+
+  const cookieStore = await cookies();
+  const repo = cookieStore.get("wdylt-repo")?.value || DEFAULT_REPO;
+
+  const octokit = new Octokit({
+    auth: token,
+    request: {
+      timeout: 30000,
+    },
+  });
+
+  return { octokit, owner: username as string, repo };
+}
+
+async function ensureRepoExists(octokit: Octokit, repo: string) {
+    try {
+        await octokit.repos.get({ owner: (await octokit.users.getAuthenticated()).data.login, repo });
+    } catch (e: any) {
+        if (e.status === 404) {
+            // Create repo
+            await octokit.repos.createForAuthenticatedUser({
+                name: repo,
+                description: "Learning journal created by WDLYT app",
+                private: true, // Default to private for safety
+                auto_init: true,
+            });
+        } else {
+            throw e;
+        }
+    }
 }
 
 export interface GitHubEntry {
@@ -33,12 +64,14 @@ export interface GitHubEntry {
 }
 
 export async function findFileById(id: string): Promise<{ path: string; sha: string } | null> {
-  if (!OWNER || !REPO) return null;
+  const client = await getClient();
+  if (!client) return null;
+  const { octokit, owner, repo } = client;
 
   try {
-    const response = await OCTOKIT.repos.getContent({
-      owner: OWNER,
-      repo: REPO,
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
       path: "entries",
     });
 
@@ -50,9 +83,9 @@ export async function findFileById(id: string): Promise<{ path: string; sha: str
       .filter((file) => file.name.endsWith(".md"))
       .map(async (file) => {
         try {
-            const fileData = await OCTOKIT.repos.getContent({
-                owner: OWNER,
-                repo: REPO,
+            const fileData = await octokit.repos.getContent({
+                owner,
+                repo,
                 path: file.path,
             });
 
@@ -73,13 +106,16 @@ export async function findFileById(id: string): Promise<{ path: string; sha: str
     return results.find((res) => res !== null) || null;
 
   } catch (error) {
-    console.error("Error finding file by ID:", error);
+    // Console error only if it's not 404 (repo might not exist yet)
+    // console.error("Error finding file by ID:", error);
     return null;
   }
 }
 
 export async function saveEntryToGitHub(entry: LearningEntry) {
-  if (!OWNER || !REPO) throw new Error("Missing GitHub Config");
+  const client = await getClient();
+  if (!client) throw new Error("Unauthorized");
+  const { octokit, owner, repo } = client;
 
   // Create frontmatter content
   const fileContent = matter.stringify(entry.content || "", {
@@ -94,6 +130,8 @@ export async function saveEntryToGitHub(entry: LearningEntry) {
   const newPath = `entries/${slug}.md`;
 
   try {
+    await ensureRepoExists(octokit, repo);
+
     // Check if we are updating an existing entry
     const existingFile = await findFileById(entry.id);
 
@@ -101,27 +139,27 @@ export async function saveEntryToGitHub(entry: LearningEntry) {
         // It's an update
         if (existingFile.path !== newPath) {
             // Path changed (e.g. date or category changed) -> Rename (Delete + Create)
-            await OCTOKIT.repos.deleteFile({
-                owner: OWNER,
-                repo: REPO,
+            await octokit.repos.deleteFile({
+                owner,
+                repo,
                 path: existingFile.path,
                 message: `chore: rename entry ${entry.id} (delete old)`,
                 sha: existingFile.sha,
             });
             
             // Create new file
-            await OCTOKIT.repos.createOrUpdateFileContents({
-                owner: OWNER,
-                repo: REPO,
+            await octokit.repos.createOrUpdateFileContents({
+                owner,
+                repo,
                 path: newPath,
                 message: `feat: rename entry ${entry.id} (create new)`,
                 content: Buffer.from(fileContent).toString("base64"),
             });
         } else {
             // Path matches -> Update content
-            await OCTOKIT.repos.createOrUpdateFileContents({
-                owner: OWNER,
-                repo: REPO,
+            await octokit.repos.createOrUpdateFileContents({
+                owner,
+                repo,
                 path: newPath,
                 message: `feat: update learning entry ${entry.date}`,
                 content: Buffer.from(fileContent).toString("base64"),
@@ -130,16 +168,18 @@ export async function saveEntryToGitHub(entry: LearningEntry) {
         }
     } else {
         // It's a new entry
-        // Check if file already exists at path (unlikely with UUID but possible)
-        // If so, we can't create it without SHA. But since ID didn't match, it's a collision or new file.
-        // We'll assume new file.
-        await OCTOKIT.repos.createOrUpdateFileContents({
-            owner: OWNER,
-            repo: REPO,
-            path: newPath,
-            message: `feat: add learning entry ${entry.date}`,
-            content: Buffer.from(fileContent).toString("base64"),
-        });
+        try {
+            await octokit.repos.createOrUpdateFileContents({
+                owner,
+                repo,
+                path: newPath,
+                message: `feat: add learning entry ${entry.date}`,
+                content: Buffer.from(fileContent).toString("base64"),
+            });
+        } catch(e: any) {
+             // Retry? 
+             throw e;
+        }
     }
     
     return { success: true, path: newPath };
@@ -150,14 +190,14 @@ export async function saveEntryToGitHub(entry: LearningEntry) {
 }
 
 export async function fetchEntriesFromGitHub(): Promise<LearningEntry[]> {
-   if (!OWNER || !REPO) return [];
+   const client = await getClient();
+   if (!client) return []; // Not logged in -> empty entries
+   const { octokit, owner, repo } = client;
 
    try {
-     // List files in 'entries' directory
-     // If directory doesn't exist (fresh repo), this throws 404. We handle that.
-     const response = await OCTOKIT.repos.getContent({
-        owner: OWNER,
-        repo: REPO,
+     const response = await octokit.repos.getContent({
+        owner,
+        repo,
         path: "entries",
      });
 
@@ -165,20 +205,12 @@ export async function fetchEntriesFromGitHub(): Promise<LearningEntry[]> {
         return [];
      }
 
-     const entries: LearningEntry[] = [];
-
-     // Fetch content for each file (Parallelized)
-     // Note: detailed list file content might be large. 
-     // For a personal app, fetching 50 files is okay. 
-     // Start with latest 20? 
-     // Let's fetch all for now, assuming small volume.
-     
      const filePromises = response.data
         .filter((file) => file.name.endsWith(".md"))
         .map(async (file) => {
-            const fileData = await OCTOKIT.repos.getContent({
-                owner: OWNER,
-                repo: REPO,
+            const fileData = await octokit.repos.getContent({
+                owner,
+                repo,
                 path: file.path,
             });
             
@@ -204,7 +236,7 @@ export async function fetchEntriesFromGitHub(): Promise<LearningEntry[]> {
 
    } catch (error: any) {
       if (error.status === 404) {
-          // Repo empty or entries folder missing
+          // Repo or folder doesn't exist yet
           return [];
       }
       console.error("Error fetching entries:", error);
@@ -213,33 +245,23 @@ export async function fetchEntriesFromGitHub(): Promise<LearningEntry[]> {
 }
 
 export async function deleteEntryFromGitHub(id: string) {
-    // We need to find the file path for the ID.
-    // This is inefficient (O(N) search). 
-    // Better: Store path in local state? 
-    // For now, scan.
-     // We need to find the file path for the ID.
-     if (!OWNER || !REPO) return;
+     const client = await getClient();
+     if (!client) return { success: false };
+     const { octokit, owner, repo } = client;
      
-     // Correct implementation: Search for file containing the ID? 
-     // Or iterate entries.
-     
-     // Let's do simple: List entries, check frontmatter, find path?
-     // To delete, we need the SHA.
-     
-     // Re-implementation of lookup:
      try {
-         const response = await OCTOKIT.repos.getContent({
-            owner: OWNER,
-            repo: REPO,
+         const response = await octokit.repos.getContent({
+            owner,
+            repo,
             path: "entries",
          });
          
-         if (!Array.isArray(response.data)) return;
+         if (!Array.isArray(response.data)) return { success: false };
 
          for (const file of response.data) {
-             const fileData = await OCTOKIT.repos.getContent({
-                owner: OWNER,
-                repo: REPO,
+             const fileData = await octokit.repos.getContent({
+                owner,
+                repo,
                 path: file.path,
             });
             
@@ -247,9 +269,9 @@ export async function deleteEntryFromGitHub(id: string) {
                 const content = Buffer.from(fileData.data.content, "base64").toString("utf-8");
                 const { data } = matter(content);
                 if (data.id === id) {
-                    await OCTOKIT.repos.deleteFile({
-                        owner: OWNER,
-                        repo: REPO,
+                    await octokit.repos.deleteFile({
+                        owner,
+                        repo,
                         path: file.path,
                         message: `chore: delete entry ${id}`,
                         sha: fileData.data.sha,

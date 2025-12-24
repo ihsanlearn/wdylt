@@ -21,11 +21,15 @@ export const metadata: Metadata = {
   description: "Track your learning. Build consistency. Grow every day.",
 };
 
-export default function RootLayout({
+import { auth } from "@/auth";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -38,7 +42,7 @@ export default function RootLayout({
             disableTransitionOnChange
         >
           <div className="container mx-auto max-w-5xl px-4 py-8 md:py-12">
-            <Header />
+            <Header session={session} />
             <TransitionWrapper>
                 {children}
             </TransitionWrapper>

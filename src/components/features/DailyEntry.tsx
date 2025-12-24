@@ -10,6 +10,7 @@ import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Eye, EyeOff, Save, X } from "lucide-react";
+import { MotivationalLoader } from "@/components/ui/motivational-loader";
 
 const CATEGORIES: Category[] = [
   "Programming",
@@ -223,6 +224,7 @@ export function DailyEntry() {
           </Button>
         </form>
       </CardContent>
+      <MotivationalLoader open={isSubmitting} />
     </Card>
   );
 }
