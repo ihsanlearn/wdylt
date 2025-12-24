@@ -8,6 +8,7 @@ import { Trash2, Book, Code, Calculator, ShieldCheck, PenTool, Pencil } from "lu
 import { Button } from "@/components/ui/button";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { MotivationalLoader } from "@/components/ui/motivational-loader";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 
 const CategoryIcon = ({ category }: { category: string }) => {
   switch (category) {
@@ -21,6 +22,7 @@ const CategoryIcon = ({ category }: { category: string }) => {
 
 export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
   const { entries, removeEntry, isLoading } = useLearningStore();
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   if (isLoading) {
     return <MotivationalLoader open={true} fullscreen={false} />;
@@ -45,6 +47,13 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
 
   const sortedDates = Object.keys(groupedEntries).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
+  const handleConfirmDelete = async () => {
+    if (deletingId) {
+      await removeEntry(deletingId);
+      setDeletingId(null);
+    }
+  };
+
   if (filteredEntries.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground">
@@ -68,7 +77,7 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-2">
                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-medium text-foreground">
                              <CategoryIcon category={entry.category} /> {entry.category}
                           </span>
 
@@ -98,7 +107,7 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeEntry(entry.id)}
+                          onClick={() => setDeletingId(entry.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -110,6 +119,16 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
           </div>
         </div>
       ))}
+      
+      <ConfirmationModal
+        open={!!deletingId}
+        title="Delete Entry"
+        description="Are you sure you want to delete this learning entry? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

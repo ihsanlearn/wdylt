@@ -31,7 +31,7 @@ export function Header({ session }: { session: any }) {
               className={cn(
                 "transition-colors px-4 py-3 rounded-t-lg",
                 pathname === "/" 
-                    ? "text-foreground font-bold bg-background border-t-2 -mb-px z-10" 
+                    ? "text-foreground font-bold bg-background border-t-2 border-x -mb-px z-10" 
                     : "text-muted-foreground hover:text-primary hover:bg-muted/50"
               )}
             >
@@ -42,7 +42,7 @@ export function Header({ session }: { session: any }) {
               className={cn(
                 "transition-colors px-4 py-3 rounded-t-lg",
                 pathname === "/notes" 
-                    ? "text-foreground font-bold bg-background border-t-2 -mb-px z-10" 
+                    ? "text-foreground font-bold bg-background border-t-2 border-x -mb-px z-10" 
                     : "text-muted-foreground hover:text-primary hover:bg-muted/50"
               )}
             >
