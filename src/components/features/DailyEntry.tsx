@@ -13,7 +13,6 @@ import { Eye, EyeOff, Save, X } from "lucide-react";
 import { MotivationalLoader } from "@/components/ui/motivational-loader";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { useRouter, usePathname } from "next/navigation";
-import { NoteReaderModal } from "@/components/features/NoteReaderModal";
 
 const CATEGORIES: Category[] = [
   "Programming",
@@ -68,7 +67,6 @@ export function DailyEntry() {
   const isDirty = (content !== initialContent) || (category !== initialCategory) || (notes !== initialNotes);
 
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: 'NAVIGATE', url: string } | { type: 'CANCEL_EDIT' } | { type: 'GO_BACK' } | null>(null);
 
   // 1. Prevent browser close / refresh
@@ -202,12 +200,8 @@ export function DailyEntry() {
             notes,
             // Date remains original unless we want to allow editing date? 
             // Let's keep original date for now, or use existing logic if needed.
-            // If user wants to "move" entry to today, we might need a date picker.
-            // For now, assume date is fixed or updated via specialized UI later.
-            // Actually, let's keep the original date to preserve history.
          });
          toast.success("Entry updated successfully!");
-         handleCancelEdit(); // Clear form
       } else {
           await addEntry({
             content,
@@ -216,34 +210,9 @@ export function DailyEntry() {
             date: new Date().toISOString(),
           });
           toast.success("Learning entry saved to GitHub!");
-          // Important: We need to clear the dirty state FIRST to prevent the popstate listener from triggering confirmation
-          // AND we might need to manually pop the history trap we pushed if we are still on the same page?
-          // Actually, since we pushed a state, the browser history length increased.
-          // If we just reset state, the user is left with a "duplicate" history entry.
-          // Ideally we should go back once to remove the trap, BUT simply resetting dirty state is safer/simpler execution.
-          // If we go back() programmatically here, it might trigger the listener if state isn't updated fast enough.
-          
-          // Let's just robustly reset everything.
-          setContent("");
-          setNotes("");
-          setCategory("Programming");
-          
-          setInitialContent("");
-          setInitialNotes("");
-          setInitialCategory("Programming");
-          
-          // If a trap was active (history length increased), we could optionally router.back() 
-          // but that changes the URL if we weren't careful.
-          // Current strategy: Just let the history be slightly longer, it's harmless.
-          // The critical fix is ensuring state is cleanly reset so 'isDirty' becomes false immediately.
       }
       
-      // Update initials after successful save
-      if(editingEntry) {
-          setInitialContent(content);
-          setInitialCategory(category);
-          setInitialNotes(notes);
-      }
+      resetForm();
     } catch (error) {
        toast.error("Failed to save entry. Check your connection.");
     } finally {
@@ -295,27 +264,8 @@ export function DailyEntry() {
             {isPreview ? (
               <div className="min-h-[120px] border rounded-md p-4 bg-muted/30">
                  {content ? (
-                    <div className="relative">
-                        <div className={`prose dark:prose-invert max-w-none ${content.length > 500 ? 'max-h-[300px] overflow-hidden mask-image-b-fade' : ''}`}>
-                            <MarkdownRenderer content={content} />
-                        </div>
-                        {content.length > 500 && (
-                          <>
-                              <div className="absolute bottom-0 left-0 right-0 h-16 bg-linear-to-t from-background to-transparent pointer-events-none" />
-                              <div className="absolute bottom-2 left-0 right-0 flex justify-center z-10">
-                                  <Button 
-                                      variant="secondary" 
-                                      size="sm"
-                                      onClick={(e) => {
-                                          e.preventDefault(); 
-                                          setIsPreviewModalOpen(true);
-                                      }}
-                                  >
-                                      Read Full Note
-                                  </Button>
-                              </div>
-                          </>
-                        )}
+                    <div className="prose dark:prose-invert max-w-none max-h-[500px] overflow-y-auto">
+                        <MarkdownRenderer content={content} />
                     </div>
                  ) : (
                     <p className="text-muted-foreground italic">*Nothing written yet...*</p>
@@ -419,31 +369,6 @@ export function DailyEntry() {
         cancelText="Keep Editing"
         onConfirm={handleConfirmExit}
         onCancel={handleCancelExit}
-      />
-
-       {/* Currently DailyEntry doesn't have a "read more" state for valid entries because it edits raw text. 
-           However, in Preview mode, we might want to show full content in modal if it's very long?
-           Actually, the user said "today note on daily entry".
-           If they create a long note today, and toggle preview, they might want to read it fully?
-           Let's just add the modal support incase we add a "Read Full" button in preview, 
-           BUT for now the request likely targets the HistoryList display mainly.
-           If the user meant "Today's Learning" card which is DailyEntry context...
-           Actually DailyEntry IS the "Today's Learning" card.
-           
-           Wait, step 138 shows DailyEntry renders a textarea OR MarkdownRenderer.
-           I should truncate the MarkdownRenderer in preview mode too if requested.
-       */}
-       <NoteReaderModal 
-        open={isPreviewModalOpen}
-        onOpenChange={setIsPreviewModalOpen}
-        entry={{
-            id: 'preview',
-            content: content,
-            category: category,
-            notes: notes,
-            date: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-        }}
       />
     </Card>
   );

@@ -1,5 +1,6 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { AlertCircle, Info, CheckCircle2, AlertTriangle, XCircle, Lightbulb } from "lucide-react";
 
@@ -11,15 +12,17 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   return (
     <div className={cn(
-        "prose prose-sm dark:prose-invert wrap-break-word text-foreground",
+        "prose prose-sm dark:prose-invert max-w-none wrap-break-word text-foreground",
         "prose-headings:text-foreground prose-p:text-foreground",
         "prose-strong:text-foreground prose-strong:font-bold",
         "prose-li:text-foreground prose-blockquote:text-foreground prose-blockquote:border-l-primary",
         "prose-a:text-primary prose-code:text-foreground prose-code:bg-muted prose-code:rounded-sm prose-code:px-1",
         "prose-pre:bg-muted prose-pre:text-foreground prose-ol:text-foreground prose-ul:text-foreground prose-hr:border-border",
+        "prose-table:border-collapse prose-th:border prose-th:border-border prose-th:p-2 prose-td:border prose-td:border-border prose-td:p-2",
         className
     )}>
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           blockquote: ({ node, children, ...props }) => {
             // ReactMarkdown passes the children properly. 
