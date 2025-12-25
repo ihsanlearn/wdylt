@@ -10,6 +10,7 @@ import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { MotivationalLoader } from "@/components/ui/motivational-loader";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { useRouter, usePathname } from "next/navigation";
+import { NoteReaderModal } from "@/components/features/NoteReaderModal";
 
 const CategoryIcon = ({ category }: { category: string }) => {
   switch (category) {
@@ -24,6 +25,7 @@ const CategoryIcon = ({ category }: { category: string }) => {
 export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
   const { entries, removeEntry, isLoading } = useLearningStore();
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [readingEntry, setReadingEntry] = React.useState<LearningEntry | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -85,8 +87,23 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
                           </span>
 
                        </div>
-                       <div className="text-sm leading-relaxed">
-                          <MarkdownRenderer content={entry.content} />
+                       <div className="relative">
+                          <div className="text-sm leading-relaxed max-h-[120px] overflow-hidden mask-image-b-fade">
+                             <div className="pointer-events-none">
+                                <MarkdownRenderer content={entry.content} />
+                             </div>
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 h-16 bg-linear-to-t from-background to-transparent pointer-events-none" />
+                          <Button 
+                            variant="link" 
+                            className="p-0 h-auto text-primary text-xs font-medium mt-1 relative z-10"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setReadingEntry(entry);
+                            }}
+                          >
+                            Read Full Note
+                          </Button>
                        </div>
                        {entry.notes && (
                          <p className="text-xs text-muted-foreground italic border-l-2 pl-2 border-primary/20">
@@ -135,6 +152,12 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
         cancelText="Cancel"
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeletingId(null)}
+      />
+
+      <NoteReaderModal 
+        open={!!readingEntry}
+        onOpenChange={(open) => !open && setReadingEntry(null)}
+        entry={readingEntry}
       />
     </div>
   );
