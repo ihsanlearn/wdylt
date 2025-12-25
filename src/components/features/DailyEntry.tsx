@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Eye, EyeOff, Save, X } from "lucide-react";
 import { MotivationalLoader } from "@/components/ui/motivational-loader";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
+import { useRouter, usePathname } from "next/navigation";
 
 const CATEGORIES: Category[] = [
   "Programming",
@@ -26,6 +28,12 @@ export function DailyEntry() {
   const updateEntry = useLearningStore((state) => state.updateEntry);
   const editingEntry = useLearningStore((state) => state.editingEntry);
   const setEditingEntry = useLearningStore((state) => state.setEditingEntry);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const [initialContent, setInitialContent] = useState("");
+  const [initialCategory, setInitialCategory] = useState<Category>("Programming");
+  const [initialNotes, setInitialNotes] = useState("");
 
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<Category>("Programming");
@@ -40,16 +48,139 @@ export function DailyEntry() {
       setContent(editingEntry.content);
       setCategory(editingEntry.category as Category);
       setNotes(editingEntry.notes || "");
+      
+      setInitialContent(editingEntry.content);
+      setInitialCategory(editingEntry.category as Category);
+      setInitialNotes(editingEntry.notes || "");
+      
       // Scroll to top to ensure user sees the form
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+       // Reset initials when not editing (new entry)
+       setInitialContent("");
+       setInitialCategory("Programming");
+       setInitialNotes("");
     }
   }, [editingEntry]);
 
-  const handleCancelEdit = () => {
+  // Dirty check logic
+  const isDirty = (content !== initialContent) || (category !== initialCategory) || (notes !== initialNotes);
+
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'NAVIGATE', url: string } | { type: 'CANCEL_EDIT' } | { type: 'GO_BACK' } | null>(null);
+
+  // 1. Prevent browser close / refresh
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requires returnValue to be set
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // 2. Intercept internal navigation
+  useEffect(() => {
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      
+      if (anchor && isDirty) {
+        // Check if it's an internal link (same origin) and not a hash link
+        const href = anchor.getAttribute('href');
+        if (href && (href.startsWith('/') || href.startsWith(window.location.origin)) && !href.startsWith('#')) {
+            // Prevent navigation
+            e.preventDefault();
+            e.stopPropagation();
+            setPendingAction({ type: 'NAVIGATE', url: href });
+            setShowExitConfirmation(true);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleAnchorClick, { capture: true });
+    return () => document.removeEventListener('click', handleAnchorClick, { capture: true });
+  }, [isDirty]);
+
+  // 3. Intercept browser back button (popstate)
+  // Strategy: When dirty, push a dummy state so "Back" stays on page and triggers popstate
+  useEffect(() => {
+    if (isDirty) {
+        // Push current state to create a trap
+        window.history.pushState(null, '', window.location.href);
+        
+        const handlePopState = () => {
+             // User hit back, but because we pushed state, we are still on the same URL
+             // Show confirmation
+             setPendingAction({ type: 'GO_BACK' });
+             setShowExitConfirmation(true);
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+            // If cleaning up while still dirty (e.g. unmount), we can't easily undo the pushState without triggering nav
+            // But if we are no longer dirty (saved), we might want to pop the trap?
+            // Actually, best to just leave it to avoid complexity, user just has an extra history entry.
+        };
+    }
+  }, [isDirty]);
+
+  const resetForm = () => {
     setEditingEntry(null);
     setContent("");
     setNotes("");
     setCategory("Programming");
+    
+    // Reset initials
+    setInitialContent("");
+    setInitialCategory("Programming");
+    setInitialNotes("");
+  };
+
+  const handleConfirmExit = () => {
+    setShowExitConfirmation(false);
+    if (pendingAction?.type === 'NAVIGATE') {
+        router.push(pendingAction.url);
+    } else if (pendingAction?.type === 'CANCEL_EDIT') {
+        resetForm();
+    } else if (pendingAction?.type === 'GO_BACK') {
+        // We trapped the user once. If they confirm exit, we need to actually go back.
+        // Since we pushed a state, we are at [Prev] -> [Current] -> [Current]
+        // User clicked back -> [Prev] -> [Current] (Trap fired)
+        // To leave, we need to go back again -> [Prev]
+        resetForm();
+        router.back();
+    }
+    setPendingAction(null);
+  };
+
+  const handleCancelExit = () => {
+    setShowExitConfirmation(false);
+    
+    // If we were handling a BACK action and user cancelled:
+    // We are at [Prev] -> [Current] (after they hit back)
+    // We need to push the trap again to be ready for next back click
+    if (pendingAction?.type === 'GO_BACK') {
+        window.history.pushState(null, '', window.location.href);
+    }
+    
+    setPendingAction(null);
+  };
+
+
+  const handleCancelEdit = () => {
+    if (isDirty && editingEntry) {
+        setPendingAction({ type: 'CANCEL_EDIT' });
+        setShowExitConfirmation(true);
+    } else {
+        resetForm();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,6 +216,17 @@ export function DailyEntry() {
           toast.success("Learning entry saved to GitHub!");
           setContent("");
           setNotes("");
+          // Reset initials for new entry
+          setInitialContent("");
+          setInitialNotes("");
+          setInitialCategory("Programming");
+      }
+      
+      // Update initials after successful save
+      if(editingEntry) {
+          setInitialContent(content);
+          setInitialCategory(category);
+          setInitialNotes(notes);
       }
     } catch (error) {
        toast.error("Failed to save entry. Check your connection.");
@@ -224,7 +366,18 @@ export function DailyEntry() {
           </Button>
         </form>
       </CardContent>
+
       <MotivationalLoader open={isSubmitting} />
+      
+      <ConfirmationModal
+        open={showExitConfirmation}
+        title="Unsaved Changes"
+        description="You have unsaved changes. Are you sure you want to leave? Your changes will be lost."
+        confirmText="Discard & Leave"
+        cancelText="Keep Editing"
+        onConfirm={handleConfirmExit}
+        onCancel={handleCancelExit}
+      />
     </Card>
   );
 }

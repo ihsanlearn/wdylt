@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { MarkdownRenderer } from "@/components/shared/MarkdownRenderer";
 import { MotivationalLoader } from "@/components/ui/motivational-loader";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
+import { useRouter, usePathname } from "next/navigation";
 
 const CategoryIcon = ({ category }: { category: string }) => {
   switch (category) {
@@ -23,6 +24,8 @@ const CategoryIcon = ({ category }: { category: string }) => {
 export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
   const { entries, removeEntry, isLoading } = useLearningStore();
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   if (isLoading) {
     return <MotivationalLoader open={true} fullscreen={false} />;
@@ -98,7 +101,11 @@ export function HistoryList({ onlyToday = false }: { onlyToday?: boolean }) {
                           className="h-6 w-6 text-muted-foreground hover:text-primary"
                           onClick={() => {
                               useLearningStore.getState().setEditingEntry(entry);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              if (pathname === "/notes") {
+                                router.push("/");
+                              } else {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }
                           }}
                         >
                           <Pencil className="h-4 w-4" />

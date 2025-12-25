@@ -37,7 +37,7 @@ export function MotivationalLoader({ open, fullscreen = true }: { open: boolean;
         ? "fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 text-white backdrop-blur-sm transition-all animate-in fade-in duration-300"
         : "flex flex-col items-center justify-center w-full py-20 min-h-[300px] animate-in fade-in duration-300";
 
-    const textClass = fullscreen ? "text-background" : "text-foreground";
+    const textClass = fullscreen ? "text-text-loading" : "text-foreground";
     const flameBg = fullscreen ? "bg-background" : "bg-muted";
 
     return (
